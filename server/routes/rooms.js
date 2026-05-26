@@ -3,69 +3,116 @@ import { Router } from 'express';
 export default function roomsRouter(db, io) {
   const router = Router();
 
-  // GET /api/rooms/:playerId — status de todas as salas para o jogador
   router.get('/:playerId', (req, res) => {
     const { playerId } = req.params;
     const allRooms = db.prepare('SELECT * FROM rooms ORDER BY id').all();
     const progress = db.prepare('SELECT * FROM player_room_progress WHERE player_id = ?').all(playerId);
-    const result = allRooms.map(room => {
-      const prog = progress.find(p => p.room_id === room.id) || null;
+    const result = allRooms.map((room) => {
+      const roomProgress = progress.find((item) => item.room_id === room.id) || null;
       const requiredDone = !room.required_room_id ||
-        progress.some(p => p.room_id === room.required_room_id && p.is_completed === 1);
+        progress.some((item) => item.room_id === room.required_room_id && item.is_completed === 1);
+
       return {
         ...room,
-        isUnlocked:  requiredDone,
-        isCompleted: prog?.is_completed === 1,
-        roomScore:   prog?.room_score || 0,
-        phasesDone:  prog ? JSON.parse(prog.phases_done) : [],
+        isUnlocked: requiredDone,
+        isCompleted: roomProgress?.is_completed === 1,
+        roomScore: roomProgress?.room_score || 0,
+        phasesDone: roomProgress ? JSON.parse(roomProgress.phases_done) : [],
       };
     });
+
     res.json(result);
   });
 
-  // POST /api/rooms/:roomId/phase/:n/complete — completar fase
   router.post('/:roomId/phase/:n/complete', (req, res) => {
-    const roomId = parseInt(req.params.roomId);
-    const phase  = parseInt(req.params.n);
-    const { playerId, pointsEarned, timeBonus, attemptsUsed, hintUsed, responseTime, variation, answerGiven } = req.body;
+    const roomId = Number.parseInt(req.params.roomId, 10);
+    const phase = Number.parseInt(req.params.n, 10);
+    const {
+      playerId,
+      pointsEarned,
+      attemptsUsed,
+      hintUsed,
+      responseTime,
+      variation,
+      answerGiven
+    } = req.body;
 
-    const finalPoints = Math.round(pointsEarned * (getRoomMultiplier(db, roomId)));
+    const player = db.prepare('SELECT current_session_id FROM players WHERE id = ?').get(playerId);
+    const finalPoints = Math.round(pointsEarned * getRoomMultiplier(db, roomId));
 
     db.prepare(`
-      INSERT INTO response_logs (player_id, room_id, phase, variation, answer_given, is_correct, points_earned, attempts_used, response_time_s, hint_used)
-      VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
-    `).run(playerId, roomId, phase, variation||'A', answerGiven||'', finalPoints, attemptsUsed||1, responseTime||0, hintUsed?1:0);
+      INSERT INTO response_logs (
+        player_id,
+        session_id,
+        room_id,
+        phase,
+        variation,
+        answer_given,
+        is_correct,
+        points_earned,
+        attempts_used,
+        response_time_s,
+        hint_used
+      )
+      VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
+    `).run(
+      playerId,
+      player?.current_session_id || null,
+      roomId,
+      phase,
+      variation || 'A',
+      answerGiven || '',
+      finalPoints,
+      attemptsUsed || 1,
+      responseTime || 0,
+      hintUsed ? 1 : 0
+    );
 
-    const prog = db.prepare('SELECT * FROM player_room_progress WHERE player_id = ? AND room_id = ?').get(playerId, roomId);
-    const phases = prog ? JSON.parse(prog.phases_done) : [];
-    if (!phases.includes(phase)) phases.push(phase);
-    const isCompleted = phases.length >= 10 ? 1 : 0;
+    const progress = db.prepare(
+      'SELECT * FROM player_room_progress WHERE player_id = ? AND room_id = ?'
+    ).get(playerId, roomId);
+    const phasesDone = progress ? JSON.parse(progress.phases_done) : [];
+    if (!phasesDone.includes(phase)) {
+      phasesDone.push(phase);
+    }
+
+    const isCompleted = phasesDone.length >= 10 ? 1 : 0;
 
     db.prepare(`
       INSERT INTO player_room_progress (player_id, room_id, phases_done, room_score, is_completed, started_at)
       VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       ON CONFLICT(player_id, room_id) DO UPDATE SET
         phases_done = excluded.phases_done,
-        room_score  = room_score + ?,
+        room_score = room_score + ?,
         is_completed = excluded.is_completed,
         completed_at = CASE WHEN excluded.is_completed = 1 THEN CURRENT_TIMESTAMP ELSE completed_at END
-    `).run(playerId, roomId, JSON.stringify(phases), finalPoints, isCompleted, finalPoints);
+    `).run(playerId, roomId, JSON.stringify(phasesDone), finalPoints, isCompleted, finalPoints);
 
-    db.prepare('UPDATE players SET total_score = total_score + ?, current_phase = ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?')
-      .run(finalPoints, phase + 1, playerId);
+    db.prepare(`
+      UPDATE players
+      SET total_score = total_score + ?,
+          current_room_id = ?,
+          current_phase = ?,
+          last_updated = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(finalPoints, roomId, phase + 1, playerId);
 
     let nextRoom = null;
     if (isCompleted) {
       nextRoom = checkAndUnlockNextRoom(db, io, playerId, roomId);
     }
 
-    const top5 = getTop5(db);
-    io.emit('leaderboard_update', top5);
+    io.emit('leaderboard_update', getTop5(db));
 
-    res.json({ ok: true, pointsEarned: finalPoints, phasesDone: phases, isRoomComplete: isCompleted === 1, nextRoom });
+    res.json({
+      ok: true,
+      pointsEarned: finalPoints,
+      phasesDone,
+      isRoomComplete: isCompleted === 1,
+      nextRoom
+    });
   });
 
-  // GET /api/rooms/leaderboard/global
   router.get('/leaderboard/global', (_req, res) => {
     res.json(getTop5(db));
   });
@@ -98,10 +145,22 @@ function checkAndUnlockNextRoom(db, io, playerId, completedRoomId) {
     io.emit('absolute_winner', { playerId, nickname: player.nickname });
     return null;
   }
+
   db.prepare('INSERT OR IGNORE INTO player_room_progress (player_id, room_id) VALUES (?, ?)').run(playerId, nextRoom.id);
-  db.prepare('UPDATE players SET total_score = total_score + ?, current_room_id = ?, current_phase = 1 WHERE id = ?')
-    .run(nextRoom.unlock_bonus, nextRoom.id, playerId);
+  db.prepare(`
+    UPDATE players
+    SET total_score = total_score + ?,
+        current_room_id = ?,
+        current_phase = 1,
+        last_updated = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).run(nextRoom.unlock_bonus, nextRoom.id, playerId);
+
   const player = db.prepare('SELECT nickname FROM players WHERE id = ?').get(playerId);
-  io.emit('room_unlock_broadcast', { nickname: player.nickname, newRoom: nextRoom.name, roomEmoji: nextRoom.emoji });
+  io.emit('room_unlock_broadcast', {
+    nickname: player.nickname,
+    newRoom: nextRoom.name,
+    roomEmoji: nextRoom.emoji
+  });
   return nextRoom;
 }
