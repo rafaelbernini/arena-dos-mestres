@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS players (
   nickname         TEXT NOT NULL UNIQUE,
   hero_class       TEXT NOT NULL,
   avatar_json      TEXT NOT NULL DEFAULT '{}',
+  current_session_id TEXT,
   current_room_id  INTEGER DEFAULT 1,
   current_phase    INTEGER DEFAULT 1,
   total_score      INTEGER DEFAULT 0,
@@ -53,6 +54,7 @@ CREATE TABLE IF NOT EXISTS player_room_progress (
 CREATE TABLE IF NOT EXISTS response_logs (
   id              INTEGER PRIMARY KEY AUTOINCREMENT,
   player_id       TEXT NOT NULL,
+  session_id      TEXT,
   room_id         INTEGER NOT NULL,
   phase           INTEGER NOT NULL,
   variation       TEXT,

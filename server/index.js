@@ -1,8 +1,8 @@
+import cors from 'cors';
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-import cors from 'cors';
-import { createDb } from './db/init.js';
+import { createDb, startGameSession } from './db/init.js';
 import playersRouter from './routes/players.js';
 import roomsRouter from './routes/rooms.js';
 import scoresRouter from './routes/scores.js';
@@ -20,16 +20,18 @@ app.use(cors());
 app.use(express.json());
 
 const db = createDb();
+const activeSessionId = startGameSession(db);
 
-app.use('/api/players', playersRouter(db));
-app.use('/api/rooms',   roomsRouter(db, io));
-app.use('/api/scores',  scoresRouter(db));
+app.use('/api/players', playersRouter(db, activeSessionId));
+app.use('/api/rooms', roomsRouter(db, io));
+app.use('/api/scores', scoresRouter(db));
 
-app.get('/api/health', (_req, res) => res.json({ ok: true, ts: Date.now() }));
+app.get('/api/health', (_req, res) => res.json({ ok: true, ts: Date.now(), sessionId: activeSessionId }));
 
 initSocket(io, db);
 
 httpServer.listen(PORT, '0.0.0.0', () => {
-  console.log(`🏆 Arena dos Mestres rodando em http://0.0.0.0:${PORT}`);
-  console.log(`   Painel professor: http://0.0.0.0:${PORT}/api/health`);
+  console.log(`Arena dos Mestres rodando em http://0.0.0.0:${PORT}`);
+  console.log(`Painel professor: http://0.0.0.0:${PORT}/api/health`);
+  console.log(`Sessao ativa: ${activeSessionId.slice(0, 8)}`);
 });
