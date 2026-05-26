@@ -110,7 +110,7 @@ git --version    # deve mostrar git version 2.x.x
 ### 1. Clonar o repositório
 
 ```bash
-git clone https://github.com/SEU_USUARIO/arena-dos-mestres.git
+git clone https://github.com/rafaelbernini/arena-dos-mestres.git
 cd arena-dos-mestres
 ```
 
