@@ -26,6 +26,7 @@ export default function AvatarPage() {
   const [heroClass, setHeroClass] = useState(state.heroClass || 'explorador');
   const [color, setColor] = useState(state.avatarJson?.color || '#7c3aed');
   const [accessory, setAccessory] = useState(state.avatarJson?.accessory || 'cajado');
+  const [gender, setGender] = useState(state.avatarJson?.gender || 'male');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -56,7 +57,7 @@ export default function AvatarPage() {
         body: JSON.stringify({
           nickname: state.nickname,
           heroClass,
-          avatarJson: { color, accessory }
+          avatarJson: { color, accessory, gender }
         })
       });
 
@@ -74,7 +75,7 @@ export default function AvatarPage() {
           playerId: data.playerId,
           nickname: data.nickname,
           heroClass,
-          avatarJson: { color, accessory },
+          avatarJson: { color, accessory, gender },
           isLoggedIn: true
         }
       });
@@ -141,19 +142,12 @@ export default function AvatarPage() {
               alignItems: 'center',
               gap: 10
             }}>
-              <div style={{
-                width: 128,
-                height: 128,
-                borderRadius: '50%',
-                background: `${color}22`,
-                border: `3px solid ${color}`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 60
-              }}>
-                {CLASS_EMOJI[heroClass]}
+              
+              {/* Fallback emoji while debugging Three Fiber */}
+              <div style={{ fontSize: 64 }}>
+                {gender === 'female' ? '🎀' : '🐱'}
               </div>
+
               <div style={{ color: '#fff', fontSize: 22, fontWeight: 700 }}>
                 {state.nickname || 'Jogador'}
               </div>
@@ -215,6 +209,39 @@ export default function AvatarPage() {
                     </button>
                   );
                 })}
+              </div>
+            </section>
+
+            <section style={{
+              background: 'rgba(19, 10, 44, 0.92)',
+              border: '1px solid #3d2d70',
+              borderRadius: 18,
+              padding: 18
+            }}>
+              <div style={{ fontSize: 12, color: '#8a7ab8', letterSpacing: 1.1, marginBottom: 12 }}>MASCOTE</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <button
+                  onClick={() => setGender('male')}
+                  style={{
+                    background: gender === 'male' ? '#2d1b6e' : '#1a1040',
+                    border: `1px solid ${gender === 'male' ? '#8b5cf6' : '#2a1d50'}`,
+                    borderRadius: 14,
+                    padding: 12,
+                    cursor: 'pointer',
+                    color: '#fff',
+                  }}
+                >Gato 🐱</button>
+                <button
+                  onClick={() => setGender('female')}
+                  style={{
+                    background: gender === 'female' ? '#2d1b6e' : '#1a1040',
+                    border: `1px solid ${gender === 'female' ? '#8b5cf6' : '#2a1d50'}`,
+                    borderRadius: 14,
+                    padding: 12,
+                    cursor: 'pointer',
+                    color: '#fff',
+                  }}
+                >Gata 🎀</button>
               </div>
             </section>
 
