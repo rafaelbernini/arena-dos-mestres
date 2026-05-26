@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useGame } from '../context/GameContext.jsx';
 import { useSocket } from '../context/SocketContext.jsx';
 import { HERO_CLASSES } from '../../../shared/difficulty.js';
+import VoxelAvatar from '../components/AvatarCreator/VoxelAvatar.jsx';
 
 const COLORS = ['#7c3aed', '#059669', '#0891b2', '#dc2626', '#d97706', '#db2777'];
 const ACCESSORIES = [
@@ -10,6 +11,7 @@ const ACCESSORIES = [
   { id: 'oculos', label: 'Oculos', icon: '🕶️' },
   { id: 'capa', label: 'Capa', icon: '🧥' },
   { id: 'chapeu', label: 'Chapeu', icon: '🎩' },
+  { id: 'coroa', label: 'Coroa', icon: '👑' },
   { id: 'nenhum', label: 'Sem acessorio', icon: '🙂' }
 ];
 
@@ -142,11 +144,7 @@ export default function AvatarPage() {
               alignItems: 'center',
               gap: 10
             }}>
-              
-              {/* Fallback emoji while debugging Three Fiber */}
-              <div style={{ fontSize: 64 }}>
-                {gender === 'female' ? '🎀' : '🐱'}
-              </div>
+              <VoxelAvatar color={color} accessory={accessory} gender={gender} />
 
               <div style={{ color: '#fff', fontSize: 22, fontWeight: 700 }}>
                 {state.nickname || 'Jogador'}
