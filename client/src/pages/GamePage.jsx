@@ -30,6 +30,7 @@ export default function GamePage() {
   const [locked, setLocked] = useState(false);
   const [particles, setParticles] = useState(false);
   const [startTime, setStartTime] = useState(Date.now());
+  const [player, setPlayer] = useState(null);
 
   const syncProgress = useCallback(async (phaseNumber) => {
     if (!state.playerId) {
@@ -72,6 +73,19 @@ export default function GamePage() {
       navigate('/');
       return;
     }
+
+    // Busca as informações do jogador para exibir o nickname e o avatar
+    fetch(`/api/players/${state.playerId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.avatar_json) {
+          try {
+            data.avatar = JSON.parse(data.avatar_json);
+          } catch (e) {}
+        }
+        setPlayer(data);
+      })
+      .catch(console.error);
 
     loadPhase(1);
   }, [navigate, state.playerId]);
@@ -185,10 +199,22 @@ export default function GamePage() {
     <div style={{ minHeight: '100vh', background: '#1a0c38', fontFamily: 'Inter,sans-serif', position: 'relative' }}>
       <ParticleExplosion trigger={particles} type="success" />
 
-      <div style={{ background: '#10082a', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '0.5px solid #1e1040' }}>
+      {/* Alterado para flexWrap: 'wrap' para manter a responsividade no celular */}
+      <div style={{ background: '#10082a', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '0.5px solid #1e1040', flexWrap: 'wrap' }}>
         <button onClick={() => navigate('/salas')} style={{ background: 'none', border: '0.5px solid #2a1d50', borderRadius: 6, color: '#5a4a8a', padding: '4px 10px', cursor: 'pointer', fontSize: 12 }}>← Salas</button>
+        
+        {/* Nova Tag de Identificação do Jogador */}
+        {player && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#1a1040', padding: '4px 10px', borderRadius: 20, border: '0.5px solid #2a1d50' }}>
+             <div style={{ width: 20, height: 20, borderRadius: '50%', background: player.avatar?.color || '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, boxShadow: '0 0 5px rgba(0,0,0,0.5)' }}>
+                {player.avatar?.accessory === 'glasses' ? '👓' : player.avatar?.accessory === 'cape' ? '🦸' : player.avatar?.accessory === 'hat' ? '🎩' : '🧑‍🚀'}
+             </div>
+             <span style={{ fontSize: 12, color: '#c4b5fd', fontWeight: 600 }}>{player.nickname}</span>
+          </div>
+        )}
+
         <ScoreDisplay score={score} />
-        <div style={{ flex: 1 }}><TimerBar timeLeft={timeLeft} percentRemaining={percentRemaining} isWarning={isWarning} isDanger={isDanger} /></div>
+        <div style={{ flex: 1, minWidth: '100px' }}><TimerBar timeLeft={timeLeft} percentRemaining={percentRemaining} isWarning={isWarning} isDanger={isDanger} /></div>
         <div style={{ fontSize: 13, color: '#c4b5fd' }}>{roomInfo?.emoji} fase {phase}/10</div>
         <div style={{ fontSize: 11, color: '#f59e0b', background: '#1a1208', borderRadius: 4, padding: '2px 8px' }}>×{roomInfo?.multiplier}</div>
       </div>
