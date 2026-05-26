@@ -1,5 +1,5 @@
 {
-  "installCommand": "npm install && npm install --workspace=client && npm install --workspace=server",
+  "installCommand": "npm install --legacy-peer-deps && npm install --workspace=client --legacy-peer-deps && npm install --workspace=server --legacy-peer-deps",
   "buildCommand": "npm run build",
   "outputDirectory": "client/public",
   "rewrites": [
