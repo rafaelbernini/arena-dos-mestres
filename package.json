@@ -1,0 +1,16 @@
+{
+  "name": "arena-dos-mestres",
+  "version": "1.0.0",
+  "description": "Jogo educativo de matemática para alunos do 7° ano SESI — 11/12 anos",
+  "private": true,
+  "workspaces": ["client", "server"],
+  "scripts": {
+    "dev": "concurrently \"npm run dev --workspace=server\" \"npm run dev --workspace=client\"",
+    "install:all": "npm install && npm install --workspace=client && npm install --workspace=server",
+    "setup": "node server/db/init.js",
+    "start": "npm run dev"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
