@@ -1,6 +1,7 @@
 {
-  "buildCommand": "npm install && npm install --workspace=client && npm run build",
-  "outputDirectory": "client/dist",
+  "installCommand": "npm install && npm install --workspace=client && npm install --workspace=server",
+  "buildCommand": "npm run build",
+  "outputDirectory": "client/public",
   "rewrites": [
     {
       "source": "/api/(.*)",
