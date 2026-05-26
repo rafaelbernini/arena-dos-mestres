@@ -5,6 +5,7 @@ server/db/game.db
 server/db/*.db
 dist/
 client/dist/
+public/
 .env
 .env.local
 *.log
