@@ -1,6 +1,6 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { IncomingMessage, ServerResponse } from 'http';
 
-export default function handler(req: VercelRequest, res: VercelResponse) {
+export default function handler(req: IncomingMessage & { body: any }, res: ServerResponse) {
   // Ensure the endpoint correctly handles POST requests
   if (req.method === 'POST') {
     const data = req.body;
