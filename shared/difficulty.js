@@ -1,3 +1,5 @@
+export { PHASES_CONFIG } from './phases.config.js';
+
 export const DIFFICULTY = {
   timePerPhase: 60,
   maxAttempts: 3,
