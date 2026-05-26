@@ -36,7 +36,24 @@ export default function playersRouter(db, activeSessionId) {
 
   router.patch('/:id/connect', (req, res) => {
     const { connected } = req.body;
-    db.prepare('UPDATE players SET connected = ? WHERE id = ?').run(connected ? 1 : 0, req.params.id);
+    db.prepare(`
+      UPDATE players
+      SET connected = ?, last_updated = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(connected ? 1 : 0, req.params.id);
+    res.json({ ok: true });
+  });
+
+  router.patch('/:id/progress', (req, res) => {
+    const { currentRoomId, currentPhase } = req.body;
+    db.prepare(`
+      UPDATE players
+      SET current_room_id = COALESCE(?, current_room_id),
+          current_phase = COALESCE(?, current_phase),
+          connected = 1,
+          last_updated = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(currentRoomId ?? null, currentPhase ?? null, req.params.id);
     res.json({ ok: true });
   });
 

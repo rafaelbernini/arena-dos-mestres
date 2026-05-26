@@ -1,6 +1,7 @@
 {
   "name": "arena-dos-mestres",
   "version": "1.0.0",
+  "type": "module",
   "description": "Jogo educativo de matemática para alunos do 7° ano SESI — 11/12 anos",
   "private": true,
   "workspaces": ["client", "server"],

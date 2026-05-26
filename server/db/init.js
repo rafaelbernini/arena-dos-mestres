@@ -5,12 +5,12 @@ import Database from 'better-sqlite3';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const dbPath = join(__dirname, 'game.db');
+const dbPath = process.env.VERCEL ? '/tmp/arena-dos-mestres.db' : join(__dirname, 'game.db');
 const schemaPath = join(__dirname, 'schema.sql');
 
 export function createDb() {
   const db = new Database(dbPath);
-  db.pragma('journal_mode = WAL');
+  db.pragma(`journal_mode = ${process.env.VERCEL ? 'MEMORY' : 'WAL'}`);
   db.pragma('foreign_keys = ON');
   const schema = readFileSync(schemaPath, 'utf8');
   db.exec(schema);

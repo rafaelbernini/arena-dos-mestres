@@ -1,7 +1,11 @@
 import { Router } from 'express';
 
-export default function roomsRouter(db, io) {
+export default function roomsRouter(db) {
   const router = Router();
+
+  router.get('/leaderboard/global', (_req, res) => {
+    res.json(getTop5(db));
+  });
 
   router.get('/:playerId', (req, res) => {
     const { playerId } = req.params;
@@ -99,10 +103,8 @@ export default function roomsRouter(db, io) {
 
     let nextRoom = null;
     if (isCompleted) {
-      nextRoom = checkAndUnlockNextRoom(db, io, playerId, roomId);
+      nextRoom = unlockNextRoom(db, playerId, roomId);
     }
-
-    io.emit('leaderboard_update', getTop5(db));
 
     res.json({
       ok: true,
@@ -111,10 +113,6 @@ export default function roomsRouter(db, io) {
       isRoomComplete: isCompleted === 1,
       nextRoom
     });
-  });
-
-  router.get('/leaderboard/global', (_req, res) => {
-    res.json(getTop5(db));
   });
 
   return router;
@@ -132,17 +130,15 @@ function getTop5(db) {
     FROM players p
     LEFT JOIN rooms r ON r.id = p.current_room_id
     WHERE p.connected = 1
-    ORDER BY p.total_score DESC, p.rooms_completed DESC
+    ORDER BY p.total_score DESC, p.rooms_completed DESC, p.last_updated DESC
     LIMIT 5
   `).all();
 }
 
-function checkAndUnlockNextRoom(db, io, playerId, completedRoomId) {
+function unlockNextRoom(db, playerId, completedRoomId) {
   db.prepare('UPDATE players SET rooms_completed = rooms_completed + 1 WHERE id = ?').run(playerId);
   const nextRoom = db.prepare('SELECT * FROM rooms WHERE required_room_id = ?').get(completedRoomId);
   if (!nextRoom) {
-    const player = db.prepare('SELECT nickname FROM players WHERE id = ?').get(playerId);
-    io.emit('absolute_winner', { playerId, nickname: player.nickname });
     return null;
   }
 
@@ -156,11 +152,5 @@ function checkAndUnlockNextRoom(db, io, playerId, completedRoomId) {
     WHERE id = ?
   `).run(nextRoom.unlock_bonus, nextRoom.id, playerId);
 
-  const player = db.prepare('SELECT nickname FROM players WHERE id = ?').get(playerId);
-  io.emit('room_unlock_broadcast', {
-    nickname: player.nickname,
-    newRoom: nextRoom.name,
-    roomEmoji: nextRoom.emoji
-  });
   return nextRoom;
 }
