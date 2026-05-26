@@ -78,20 +78,6 @@ function Assert-NotInsideGitRepo {
     }
 }
 
-function Get-CurrentGitBranch {
-    $branch = (& git branch --show-current 2>$null)
-    if ($LASTEXITCODE -ne 0) {
-        return $null
-    }
-
-    $branch = $branch.Trim()
-    if ([string]::IsNullOrWhiteSpace($branch)) {
-        return $null
-    }
-
-    return $branch
-}
-
 # ---------------------------------------------------------------------------
 # Inicio
 # ---------------------------------------------------------------------------
@@ -114,26 +100,14 @@ Assert-GitInstalled
 Write-Step "2/5" "Verificando estado do repositorio local..."
 Assert-NotInsideGitRepo
 
-$repoAlreadyExists = Test-Path ".git"
-$currentBranch = $null
-if ($repoAlreadyExists) {
-    $currentBranch = Get-CurrentGitBranch
-}
-
 # 3. git init (so se nao tiver .git)
-if (-not $repoAlreadyExists) {
+if (-not (Test-Path ".git")) {
     Write-Step "3/5" "Inicializando repositorio Git..."
     git init
     if ($LASTEXITCODE -ne 0) { Write-Fail "Falha em git init"; exit 1 }
     Write-Success "Repositorio inicializado"
-    $currentBranch = 'main'
 } else {
     Write-Step "3/5" "Repositorio Git ja existe. Pulando git init."
-    if ($currentBranch) {
-        Write-Success "Mantendo branch atual '$currentBranch'"
-    } else {
-        Write-Host "   AVISO  Branch atual nao identificada (HEAD destacado)." -ForegroundColor Yellow
-    }
 }
 
 # 4. Staging + commit
@@ -147,18 +121,12 @@ git commit -m $commitMsg
 if ($LASTEXITCODE -ne 0) {
     # Pode falhar se nao houver nada novo (repo ja tinha commits)
     Write-Host "   AVISO  Nenhum arquivo novo para commitar (ou commit ja existe)." -ForegroundColor Yellow
-} else {
-    Write-Success "Commit criado"
 }
+Write-Success "Commit criado"
 
-if (-not $repoAlreadyExists) {
-    git branch -M main
-    if ($LASTEXITCODE -ne 0) { Write-Fail "Falha ao renomear branch para main"; exit 1 }
-    $currentBranch = 'main'
-    Write-Success "Branch renomeada para 'main'"
-} elseif ($currentBranch) {
-    Write-Success "Branch atual preservada como '$currentBranch'"
-}
+git branch -M main
+if ($LASTEXITCODE -ne 0) { Write-Fail "Falha ao renomear branch para main"; exit 1 }
+Write-Success "Branch renomeada para 'main'"
 
 # 5. Remote + push
 Write-Step "5/5" "Conectando ao GitHub e fazendo push..."
@@ -174,42 +142,15 @@ git remote add origin $RemoteUrl
 if ($LASTEXITCODE -ne 0) { Write-Fail "Falha ao adicionar remote"; exit 1 }
 Write-Success "Remote 'origin' adicionado"
 
-$targetBranch = if ($currentBranch) { $currentBranch } else { 'main' }
-$remoteBranchExists = $false
-
-git fetch origin --prune
-if ($LASTEXITCODE -ne 0) {
-    Write-Fail "Falha ao consultar branches remotas"
-    exit 1
-}
-
-& git show-ref --verify --quiet ("refs/remotes/origin/{0}" -f $targetBranch)
-if ($LASTEXITCODE -eq 0) {
-    $remoteBranchExists = $true
-}
-
 Write-Host ""
 Write-Host "   Enviando codigo para o GitHub..." -ForegroundColor Gray
 Write-Host "   (pode aparecer uma janela de login na primeira vez)" -ForegroundColor Gray
 Write-Host ""
 
-if ($remoteBranchExists) {
-    & git merge-base HEAD ("origin/{0}" -f $targetBranch) | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host ""
-        Write-Fail "A branch remota 'origin/$targetBranch' ja existe com historico diferente."
-        Write-Host "   - Branch local atual: $targetBranch" -ForegroundColor Yellow
-        Write-Host "   - O script nao vai forcar push para evitar sobrescrever historico." -ForegroundColor Yellow
-        Write-Host "   - Sincronize manualmente com merge/rebase, ou use outra branch." -ForegroundColor Yellow
-        exit 1
-    }
-}
-
-git push -u origin $targetBranch
+git push -u origin main
 if ($LASTEXITCODE -ne 0) {
     Write-Host ""
     Write-Fail "Falha no push. Verifique:"
-    Write-Host "   - Branch local enviada: $targetBranch" -ForegroundColor Yellow
     Write-Host "   - O repositorio existe no GitHub?" -ForegroundColor Yellow
     Write-Host "   - Voce tem permissao de escrita nele?" -ForegroundColor Yellow
     Write-Host "   - Esta autenticado? (git config --global credential.helper manager)" -ForegroundColor Yellow
