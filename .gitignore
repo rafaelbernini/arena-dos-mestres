@@ -9,3 +9,6 @@ client/dist/
 .env.local
 *.log
 .DS_Store
+.playwright-mcp/
+server/db/*.db-wal
+server/db/*.db-shm
