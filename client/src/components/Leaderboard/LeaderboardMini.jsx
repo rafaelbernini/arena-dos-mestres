@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useGame } from '../../context/GameContext.jsx';
+import { useSocket } from '../../context/SocketContext.jsx';
 
 const MEDALS = ['🥇', '🥈', '🥉'];
 
 export default function LeaderboardMini() {
   const { state } = useGame();
+  const socket = useSocket();
   const [top5, setTop5] = useState([]);
 
   useEffect(() => {
@@ -29,13 +31,32 @@ export default function LeaderboardMini() {
     }
 
     loadLeaderboard();
-    const intervalId = setInterval(loadLeaderboard, 2500);
+
+    if (socket && socket.on) {
+      socket.on('leaderboard_update', (data) => {
+        if (active) {
+          setTop5(data);
+        }
+      });
+
+      socket.on('player_activity', () => {
+        if (active) {
+          loadLeaderboard();
+        }
+      });
+    }
+
+    const intervalId = setInterval(loadLeaderboard, 5000);
 
     return () => {
       active = false;
       clearInterval(intervalId);
+      if (socket && socket.off) {
+        socket.off('leaderboard_update');
+        socket.off('player_activity');
+      }
     };
-  }, []);
+  }, [socket]);
 
   return (
     <div style={{ background: '#10082a', border: '0.5px solid #1e1040', borderRadius: 10, padding: '10px 12px', minWidth: 140 }}>

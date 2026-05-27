@@ -25,10 +25,26 @@ export function useTimer(initialSeconds, onExpire) {
   const stop = useCallback(() => clearInterval(intervalRef.current), []);
 
   useEffect(() => {
-    const vis = () => { if (document.hidden) stop(); else start(); };
+    const vis = () => {
+      if (document.hidden) {
+        stop();
+      } else {
+        clearInterval(intervalRef.current);
+        intervalRef.current = setInterval(() => {
+          setTimeLeft(prev => {
+            if (prev <= 1) {
+              clearInterval(intervalRef.current);
+              if (!expiredRef.current) { expiredRef.current = true; onExpire?.(); }
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+      }
+    };
     document.addEventListener('visibilitychange', vis);
     return () => { document.removeEventListener('visibilitychange', vis); stop(); };
-  }, [start, stop]);
+  }, [stop, onExpire]);
 
   const pct = Math.round((timeLeft / initialSeconds) * 100);
   const isWarning = timeLeft <= 20 && timeLeft > 10;

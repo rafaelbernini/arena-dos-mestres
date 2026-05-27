@@ -9,11 +9,13 @@ const app = express();
 const db = createDb();
 const activeSessionId = startGameSession(db);
 
+let io = null;
+
 app.use(cors());
 app.use(express.json());
 
 app.use('/api/players', playersRouter(db, activeSessionId));
-app.use('/api/rooms', roomsRouter(db));
+app.use('/api/rooms', (req, res, next) => roomsRouter(db, io)(req, res, next));
 app.use('/api/scores', scoresRouter(db));
 
 app.get('/api/health', (_req, res) => {
@@ -26,4 +28,7 @@ app.get('/api/health', (_req, res) => {
 });
 
 export { activeSessionId, db };
+export function setIo(socketIo) {
+  io = socketIo;
+}
 export default app;

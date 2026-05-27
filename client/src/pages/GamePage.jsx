@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useGame } from '../context/GameContext.jsx';
+import { useSocket } from '../context/SocketContext.jsx';
 import { useTimer } from '../hooks/useTimer.js';
 import { useScore } from '../hooks/useScore.js';
 import { PHASES_CONFIG, ROOMS } from '../../../shared/difficulty.js';
@@ -19,6 +20,7 @@ export default function GamePage() {
   const phases = PHASES_CONFIG[roomKey] || [];
 
   const { state, dispatch } = useGame();
+  const socket = useSocket();
   const navigate = useNavigate();
 
   const [phase, setPhase] = useState(1);
@@ -57,7 +59,6 @@ export default function GamePage() {
     const nextPhase = phase + 1;
     setPhase(nextPhase);
     dispatch({ type: 'NEXT_PHASE' });
-    loadPhase(nextPhase);
   }, [dispatch, navigate, phase]);
 
   const handleExpire = useCallback(() => {
@@ -89,6 +90,18 @@ export default function GamePage() {
 
     loadPhase(1);
   }, [navigate, state.playerId]);
+
+  useEffect(() => {
+    if (phase > 1) {
+      loadPhase(phase);
+    }
+  }, [phase]);
+
+  useEffect(() => {
+    if (socket && socket.emit && state.playerId) {
+      socket.emit('phase_start', { playerId: state.playerId, roomId: rId, phase });
+    }
+  }, [phase, socket, state.playerId, rId]);
 
   const loadPhase = (phaseNumber) => {
     const config = phases.find((item) => item.phase === phaseNumber);
@@ -127,7 +140,7 @@ export default function GamePage() {
       setFeedback({ type: 'success', msg: `Correto! +${points.toLocaleString('pt-BR')} pontos! +10s no relógio!` });
       setLocked(true);
 
-      await fetch(`/api/rooms/${rId}/phase/${phase}/complete`, {
+      fetch(`/api/rooms/${rId}/phase/${phase}/complete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -140,7 +153,12 @@ export default function GamePage() {
           answerGiven: String(answer)
         })
       })
-        .then((response) => response.json())
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          return response.json();
+        })
         .then((data) => {
           dispatch({ type: 'ADD_SCORE', payload: points });
           if (data.nextRoom) {
@@ -148,9 +166,13 @@ export default function GamePage() {
               alert(`Você desbloqueou: ${data.nextRoom.emoji} ${data.nextRoom.name}! (+${data.nextRoom.unlock_bonus} pts bônus)`);
             }, 2000);
           }
+          setTimeout(() => advancePhase(), 2500);
+        })
+        .catch((error) => {
+          console.error('Error completing phase:', error);
+          setFeedback({ type: 'error', msg: 'Erro ao salvar resposta. Tente novamente.' });
+          setLocked(false);
         });
-
-      setTimeout(() => advancePhase(), 2500);
       return;
     }
 

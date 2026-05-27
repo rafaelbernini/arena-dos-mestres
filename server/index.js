@@ -1,6 +1,6 @@
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-import app from './app.js';
+import app, { setIo } from './app.js';
 import { initSocket } from './sockets/leaderboard.js';
 import { db } from './app.js';
 
@@ -11,6 +11,7 @@ const io = new Server(httpServer, {
   cors: { origin: '*', methods: ['GET', 'POST', 'PATCH'] }
 });
 
+setIo(io);
 initSocket(io, db);
 
 httpServer.listen(PORT, '0.0.0.0', () => {

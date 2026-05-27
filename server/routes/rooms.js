@@ -1,6 +1,6 @@
 import { Router } from 'express';
 
-export default function roomsRouter(db) {
+export default function roomsRouter(db, io) {
   const router = Router();
 
   router.get('/leaderboard/global', (_req, res) => {
@@ -104,6 +104,10 @@ export default function roomsRouter(db) {
     let nextRoom = null;
     if (isCompleted) {
       nextRoom = unlockNextRoom(db, playerId, roomId);
+    }
+
+    if (io) {
+      io.emit('leaderboard_update', getTop5(db));
     }
 
     res.json({
