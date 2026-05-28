@@ -98,6 +98,12 @@ export default function GamePage() {
   }, [phase]);
 
   useEffect(() => {
+    if (socket && socket.emit && state.playerId && player) {
+      socket.emit('player_join', { playerId: state.playerId, nickname: player.nickname, roomId: rId });
+    }
+  }, [socket, state.playerId, player, rId]);
+
+  useEffect(() => {
     if (socket && socket.emit && state.playerId) {
       socket.emit('phase_start', { playerId: state.playerId, roomId: rId, phase });
     }

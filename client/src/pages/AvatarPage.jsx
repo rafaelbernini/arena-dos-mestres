@@ -81,7 +81,7 @@ export default function AvatarPage() {
           isLoggedIn: true
         }
       });
-      socket.emit('player_join', { playerId: data.playerId, nickname: data.nickname });
+      socket.emit('player_join', { playerId: data.playerId, nickname: data.nickname, roomId: 1 });
       navigate('/salas');
     } catch (_err) {
       setError('Erro de conexao com o servidor');

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { withTransaction } from '../db/init.js';
 
 export default function roomsRouter(db, io) {
   const router = Router();
@@ -41,82 +42,95 @@ export default function roomsRouter(db, io) {
       answerGiven
     } = req.body;
 
-    const player = db.prepare('SELECT current_session_id FROM players WHERE id = ?').get(playerId);
-    const finalPoints = Math.round(pointsEarned * getRoomMultiplier(db, roomId));
+    try {
+      const result = withTransaction(db, () => {
+        const player = db.prepare('SELECT current_session_id FROM players WHERE id = ?').get(playerId);
+        const finalPoints = Math.round(pointsEarned * getRoomMultiplier(db, roomId));
 
-    db.prepare(`
-      INSERT INTO response_logs (
-        player_id,
-        session_id,
-        room_id,
-        phase,
-        variation,
-        answer_given,
-        is_correct,
-        points_earned,
-        attempts_used,
-        response_time_s,
-        hint_used
-      )
-      VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
-    `).run(
-      playerId,
-      player?.current_session_id || null,
-      roomId,
-      phase,
-      variation || 'A',
-      answerGiven || '',
-      finalPoints,
-      attemptsUsed || 1,
-      responseTime || 0,
-      hintUsed ? 1 : 0
-    );
+        db.prepare(`
+          INSERT INTO response_logs (
+            player_id,
+            session_id,
+            room_id,
+            phase,
+            variation,
+            answer_given,
+            is_correct,
+            points_earned,
+            attempts_used,
+            response_time_s,
+            hint_used
+          )
+          VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
+        `).run(
+          playerId,
+          player?.current_session_id || null,
+          roomId,
+          phase,
+          variation || 'A',
+          answerGiven || '',
+          finalPoints,
+          attemptsUsed || 1,
+          responseTime || 0,
+          hintUsed ? 1 : 0
+        );
 
-    const progress = db.prepare(
-      'SELECT * FROM player_room_progress WHERE player_id = ? AND room_id = ?'
-    ).get(playerId, roomId);
-    const phasesDone = progress ? JSON.parse(progress.phases_done) : [];
-    if (!phasesDone.includes(phase)) {
-      phasesDone.push(phase);
+        const progress = db.prepare(
+          'SELECT * FROM player_room_progress WHERE player_id = ? AND room_id = ?'
+        ).get(playerId, roomId);
+        const phasesDone = progress ? JSON.parse(progress.phases_done) : [];
+        if (!phasesDone.includes(phase)) {
+          phasesDone.push(phase);
+        }
+
+        const isCompleted = phasesDone.length >= 10 ? 1 : 0;
+
+        db.prepare(`
+          INSERT INTO player_room_progress (player_id, room_id, phases_done, room_score, is_completed, started_at)
+          VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          ON CONFLICT(player_id, room_id) DO UPDATE SET
+            phases_done = excluded.phases_done,
+            room_score = room_score + ?,
+            is_completed = excluded.is_completed,
+            completed_at = CASE WHEN excluded.is_completed = 1 THEN CURRENT_TIMESTAMP ELSE completed_at END
+        `).run(playerId, roomId, JSON.stringify(phasesDone), finalPoints, isCompleted, finalPoints);
+
+        db.prepare(`
+          UPDATE players
+          SET total_score = total_score + ?,
+              current_room_id = ?,
+              current_phase = ?,
+              last_updated = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `).run(finalPoints, roomId, phase + 1, playerId);
+
+        let nextRoom = null;
+        if (isCompleted) {
+          nextRoom = unlockNextRoom(db, playerId, roomId);
+        }
+
+        return { finalPoints, phasesDone, isCompleted: isCompleted === 1, nextRoom };
+      });
+
+      if (io) {
+        const top5 = getTop5(db);
+        io.to(`room_${roomId}`).emit('leaderboard_update', top5);
+      }
+
+      res.json({
+        ok: true,
+        pointsEarned: result.finalPoints,
+        phasesDone: result.phasesDone,
+        isRoomComplete: result.isCompleted,
+        nextRoom: result.nextRoom
+      });
+    } catch (error) {
+      console.error('Error completing phase:', error);
+      res.status(500).json({
+        ok: false,
+        error: 'Failed to complete phase'
+      });
     }
-
-    const isCompleted = phasesDone.length >= 10 ? 1 : 0;
-
-    db.prepare(`
-      INSERT INTO player_room_progress (player_id, room_id, phases_done, room_score, is_completed, started_at)
-      VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-      ON CONFLICT(player_id, room_id) DO UPDATE SET
-        phases_done = excluded.phases_done,
-        room_score = room_score + ?,
-        is_completed = excluded.is_completed,
-        completed_at = CASE WHEN excluded.is_completed = 1 THEN CURRENT_TIMESTAMP ELSE completed_at END
-    `).run(playerId, roomId, JSON.stringify(phasesDone), finalPoints, isCompleted, finalPoints);
-
-    db.prepare(`
-      UPDATE players
-      SET total_score = total_score + ?,
-          current_room_id = ?,
-          current_phase = ?,
-          last_updated = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `).run(finalPoints, roomId, phase + 1, playerId);
-
-    let nextRoom = null;
-    if (isCompleted) {
-      nextRoom = unlockNextRoom(db, playerId, roomId);
-    }
-
-    if (io) {
-      io.emit('leaderboard_update', getTop5(db));
-    }
-
-    res.json({
-      ok: true,
-      pointsEarned: finalPoints,
-      phasesDone,
-      isRoomComplete: isCompleted === 1,
-      nextRoom
-    });
   });
 
   return router;

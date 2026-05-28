@@ -76,6 +76,11 @@ function backfillLegacySession(db) {
   `).run(legacySessionId);
 }
 
+export function withTransaction(db, callback) {
+  const transaction = db.transaction(callback);
+  return transaction();
+}
+
 export function startGameSession(db) {
   db.prepare(`
     UPDATE game_sessions

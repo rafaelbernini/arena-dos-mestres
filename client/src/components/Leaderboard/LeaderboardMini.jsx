@@ -4,10 +4,16 @@ import { useSocket } from '../../context/SocketContext.jsx';
 
 const MEDALS = ['🥇', '🥈', '🥉'];
 
+function areLeaderboardsSame(board1, board2) {
+  if (board1.length !== board2.length) return false;
+  return board1.every((p, i) => p.id === board2[i].id && p.total_score === board2[i].total_score);
+}
+
 export default function LeaderboardMini() {
   const { state } = useGame();
   const socket = useSocket();
   const [top5, setTop5] = useState([]);
+  const [socketConnected, setSocketConnected] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -21,7 +27,7 @@ export default function LeaderboardMini() {
 
         const data = await response.json();
         if (active) {
-          setTop5(data);
+          setTop5((prev) => (areLeaderboardsSame(prev, data) ? prev : data));
         }
       } catch {
         if (active) {
@@ -33,9 +39,17 @@ export default function LeaderboardMini() {
     loadLeaderboard();
 
     if (socket && socket.on) {
+      socket.on('connect', () => {
+        if (active) setSocketConnected(true);
+      });
+
+      socket.on('disconnect', () => {
+        if (active) setSocketConnected(false);
+      });
+
       socket.on('leaderboard_update', (data) => {
         if (active) {
-          setTop5(data);
+          setTop5((prev) => (areLeaderboardsSame(prev, data) ? prev : data));
         }
       });
 
@@ -44,9 +58,15 @@ export default function LeaderboardMini() {
           loadLeaderboard();
         }
       });
+
+      socket.on('room_full', () => {
+        if (active) {
+          alert('A sala está cheia! Tente novamente mais tarde.');
+        }
+      });
     }
 
-    const intervalId = setInterval(loadLeaderboard, 5000);
+    const intervalId = setInterval(loadLeaderboard, 10000);
 
     return () => {
       active = false;
@@ -54,6 +74,9 @@ export default function LeaderboardMini() {
       if (socket && socket.off) {
         socket.off('leaderboard_update');
         socket.off('player_activity');
+        socket.off('room_full');
+        socket.off('connect');
+        socket.off('disconnect');
       }
     };
   }, [socket]);
